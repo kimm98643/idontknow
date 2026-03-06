@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import openpyxl
-import os, re, io, gc, tempfile
+import os, re, io, gc, tempfile, traceback
 from scipy.optimize import nnls
 
 # NumPy 2.0+ 호환: trapz → trapezoid
@@ -249,6 +249,7 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files and tmpl_file:
+  try:
     # 온도 추출
     file_map, temps = find_target_files_from_uploads(uploaded_files)
     sorted_temps = sorted(temps, key=int, reverse=True)
@@ -395,6 +396,11 @@ if uploaded_files and tmpl_file:
     except Exception:
         pass
     gc.collect()
+
+  except Exception as e:
+    st.error("❌ 오류 발생!")
+    st.code(traceback.format_exc(), language="python")
+    st.info(f"오류 타입: {type(e).__name__}\n메시지: {e}")
 
 elif not tmpl_file:
     st.info("👈 사이드바에서 엑셀 템플릿 파일을 먼저 업로드하세요.")
