@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from scipy.optimize import nnls
 import gc
 
+# NumPy 2.0+ 호환: trapz → trapezoid
+_trapz = getattr(np, 'trapezoid', None) or np.trapz
+
 
 def solve_drt_core(freq, z_re, z_im, mode, lam):
     """
@@ -19,6 +22,11 @@ def solve_drt_core(freq, z_re, z_im, mode, lam):
     freq = np.asarray(freq, dtype=float).copy()
     z_re = np.asarray(z_re, dtype=float).copy()
     z_im = np.asarray(z_im, dtype=float).copy()
+
+    # 부호 안전 검사: z_im은 -Im(Z) (양수)여야 함
+    # Im(Z)(음수)가 들어오면 자동 변환
+    if np.mean(z_im) < 0:
+        z_im = -z_im
 
     if mode == 3:
         mask = z_im >= 0
@@ -61,14 +69,14 @@ def solve_drt_core(freq, z_re, z_im, mode, lam):
         diff_k = x_int - log_tau[k]
         rbf_k = np.exp(-(epsilon * diff_k) ** 2)
         deriv_cache[k] = -2.0 * epsilon ** 2 * diff_k * rbf_k
-        A_re[:, k] = np.trapz(re_kernel * rbf_k[None, :], dx=dx, axis=1)
-        A_im[:, k] = np.trapz(im_kernel * rbf_k[None, :], dx=dx, axis=1)
+        A_re[:, k] = _trapz(re_kernel * rbf_k[None, :], dx=dx, axis=1)
+        A_im[:, k] = _trapz(im_kernel * rbf_k[None, :], dx=dx, axis=1)
 
     del re_kernel, im_kernel
 
     M = np.zeros((n, n))
     for k in range(n):
-        M[k, k:] = np.trapz(deriv_cache[k] * deriv_cache[k:], dx=dx, axis=1)
+        M[k, k:] = _trapz(deriv_cache[k] * deriv_cache[k:], dx=dx, axis=1)
         M[k:, k] = M[k, k:]
 
     del deriv_cache

@@ -49,6 +49,10 @@ def solve_drt_core(freq, z_re, z_im, mode, lam):
     z_re = np.asarray(z_re, dtype=float).copy()
     z_im = np.asarray(z_im, dtype=float).copy()
 
+    # 부호 안전 검사: z_im은 -Im(Z) (양수)여야 함
+    if np.mean(z_im) < 0:
+        z_im = -z_im
+
     if mode == 3:
         mask = z_im >= 0
         freq, z_re, z_im = freq[mask], z_re[mask], z_im[mask]
@@ -194,6 +198,8 @@ def process_eis_to_excel(wb, temp_val, file_bytes, start_line, radius, thickness
 
 
 def finalize_drt_results(wb, drt_temp, tau_list, gamma_list):
+    if drt_temp not in wb.sheetnames:
+        raise KeyError(f"시트 '{drt_temp}'를 찾을 수 없습니다. 온도 이름을 확인하세요.")
     ws = wb[drt_temp]
     try:
         area_coeff = float(ws['D3'].value) if ws['D3'].value else 1.0
@@ -202,8 +208,15 @@ def finalize_drt_results(wb, drt_temp, tau_list, gamma_list):
 
     for i in range(len(tau_list)):
         r = i + 9
-        ws.cell(row=r, column=14, value=1.0 / tau_list[i])
-        ws.cell(row=r, column=15, value=gamma_list[i] * area_coeff)
+        tau_val = float(tau_list[i])
+        gamma_val = float(gamma_list[i])
+        # N열: τ → freq 변환 (1/τ). τ=0이면 안전하게 0
+        if tau_val != 0:
+            ws.cell(row=r, column=14, value=1.0 / tau_val)
+        else:
+            ws.cell(row=r, column=14, value=0.0)
+        # O열: γ × 면적계수
+        ws.cell(row=r, column=15, value=gamma_val * area_coeff)
         ws.cell(row=r, column=12, value=f"=B{r}")
         ws.cell(row=r, column=13, value=f"=J{r}")
     return wb
@@ -290,7 +303,11 @@ if uploaded_files and tmpl_file:
     d = np.array(drt_input)
     freq_raw = d[:, 0]
     re_half = d[:, 1] / 2
-    neg_im_half = -d[:, 2] / 2
+    # .mpt 3열 = -Im(Z) (양수). 만약 Im(Z)(음수)로 저장된 파일이면 자동 보정
+    im_col = d[:, 2]
+    if np.mean(im_col) < 0:
+        im_col = -im_col          # Im(Z) → -Im(Z) 변환
+    neg_im_half = im_col / 2      # 대칭셀 보정: -Im(Z)/2
 
     # ── 15개 그래프 계산 ──
     lambdas = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
