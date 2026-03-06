@@ -6,6 +6,9 @@ import openpyxl
 import os, re, io, gc, tempfile
 from scipy.optimize import nnls
 
+# NumPy 2.0+ 호환: trapz → trapezoid
+_trapz = getattr(np, 'trapezoid', None) or np.trapz
+
 # ──────────────────────────────────────────────
 #  1. EIS 로더 (eis_loader.py 통합)
 # ──────────────────────────────────────────────
@@ -79,13 +82,13 @@ def solve_drt_core(freq, z_re, z_im, mode, lam):
         d = x - log_tau[k]
         r = np.exp(-(eps * d) ** 2)
         dc[k] = -2.0 * eps ** 2 * d * r
-        A_re[:, k] = np.trapz(re_k * r[None, :], dx=dx, axis=1)
-        A_im[:, k] = np.trapz(im_k * r[None, :], dx=dx, axis=1)
+        A_re[:, k] = _trapz(re_k * r[None, :], dx=dx, axis=1)
+        A_im[:, k] = _trapz(im_k * r[None, :], dx=dx, axis=1)
     del re_k, im_k
 
     M = np.zeros((n, n))
     for k in range(n):
-        M[k, k:] = np.trapz(dc[k] * dc[k:], dx=dx, axis=1)
+        M[k, k:] = _trapz(dc[k] * dc[k:], dx=dx, axis=1)
         M[k:, k] = M[k, k:]
     del dc;  gc.collect()
 
